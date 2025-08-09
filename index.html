@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8"/>
+<title>حلواني العمده</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    * { box-sizing: border-box; }
+    body { background-color: #111; color: gold; font-family: Arial, sans-serif; padding: 20px; }
+    h1 { text-align: center; }
+    .section-btn {
+        font-size: 22px; padding: 18px 0; width: 100%;
+        border-radius: 12px; margin: 15px auto;
+        background-color: gold; color: #111;
+        border: none; display: block; cursor: pointer;
+    }
+    .form-section {
+        display: none; background-color: #222;
+        margin-top: 10px; padding: 15px; border-radius: 10px;
+    }
+    input, button, select {
+        width: 100%; padding: 14px; margin: 5px 0;
+        border-radius: 6px; border: none; font-size: 18px;
+    }
+    .label { margin-top: 10px; display: block; color: #ffc; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; color: gold; }
+    th, td { border: 1px solid #444; padding: 8px; text-align: center; }
+    th { background-color: #333; }
+    td { background-color: #222; }
+    button.delete-btn { background: none; border: none; color: red; font-size: 20px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>🍰حلواني العمده</h1>
+
+<!-- العملاء -->
+<button class="section-btn" onclick="toggleSection('customers')">📋 العملاء</button>
+<div class="form-section" id="customers">
+    <label class="label">اسم العميل</label>
+    <input id="cust_name" type="text"/>
+    <label class="label">رصيد الصواني الافتتاحي (+ أو -)</label>
+    <input id="cust_trays" type="number"/>
+    <button onclick="saveCustomer()">💾 حفظ العميل</button>
+    <div id="customerList"></div>
+</div>
+
+<!-- التوزيع -->
+<button class="section-btn" onclick="toggleSection('outgoing')">📦 التوزيع</button>
+<div class="form-section" id="outgoing">
+    <label class="label">عدد الصواني</label>
+    <input id="out_trays" type="number"/>
+    <button onclick="saveOutgoing()">💾 حفظ التوزيع</button>
+    <div id="outgoingList"></div>
+</div>
+
+<!-- تقارير التوزيع -->
+<button class="section-btn" onclick="toggleSection('outgoingReports')">📊 تقارير التوزيع</button>
+<div class="form-section" id="outgoingReports">
+    <div id="outgoingReportsContent"></div>
+</div>
+
+<!-- نقطة بيع -->
+<button class="section-btn" onclick="toggleSection('pos')">🧾 نقطة بيع</button>
+<div class="form-section" id="pos">
+    <label class="label">اختر العميل</label>
+    <select id="pos_customer"></select>
+    <label class="label">عدد الصواني المباعة</label>
+    <input id="pos_trays" type="number"/>
+    <label class="label">عدد الفوارغ المستلمة</label>
+    <input id="pos_empty" type="number"/>
+    <label class="label">الوزن القائم (كجم)</label>
+    <input id="pos_gross" type="number" step="0.01"/>
+    <label class="label">الوزن الصافي (كجم)</label>
+    <input id="pos_net" type="number" step="0.01"/>
+    <label class="label">سعر الكيلو (جنيه)</label>
+    <input id="pos_price" type="number" step="0.01"/>
+    <p id="pos_diff" style="color:lightgreen"></p>
+    <button onclick="calcInvoice()">💰 حساب الفاتورة</button>
+    <p id="pos_total" style="font-weight:bold"></p>
+    <button onclick="saveInvoice()">💾 حفظ الفاتورة</button>
+    <div id="invoiceList"></div>
+</div>
+
+<!-- تقارير العملاء -->
+<button class="section-btn" onclick="toggleSection('customerReports')">📑 تقارير العملاء</button>
+<div class="form-section" id="customerReports">
+    <div id="customerReportsContent"></div>
+</div>
+
+<!-- إجمالي صواني الفوارغ -->
+<button class="section-btn" onclick="toggleSection('emptyTrays')">🥣 إجمالي صواني الفوارغ لليوم</button>
+<div class="form-section" id="emptyTrays">
+    <div id="emptyTraysContent"></div>
+</div>
+
+<!-- إجمالي المبيعات -->
+<button class="section-btn" onclick="toggleSection('sales')">💰 إجمالي المبيعات</button>
+<div class="form-section" id="sales">
+    <div id="salesContent"></div>
+</div>
+
+<script>
+let customers = JSON.parse(localStorage.getItem("customers") || "[]");
+let outgoing = JSON.parse(localStorage.getItem("outgoing") || "[]");
+let invoices = JSON.parse(localStorage.getItem("invoices") || "[]");
+
+const toggleSection = id => {
+    let sec = document.getElementById(id);
+    let isVisible = sec.style.display === 'block';
+    document.querySelectorAll('.form-section').forEach(s => s.style.display = 'none');
+    if (!isVisible) {
+        sec.style.display = 'block';
+        if(id==='customers') showCustomers();
+        if(id==='outgoing') showOutgoing();
+        if(id==='outgoingReports') showOutgoingReports();
+        if(id==='pos') loadCustomers(pos_customer), showInvoices();
+        if(id==='customerReports') showCustomerReports();
+        if(id==='emptyTrays') showEmptyTrays();
+        if(id==='sales') showSales();
+    }
+};
+
+const loadCustomers = (selectElem) => {
+    selectElem.innerHTML = customers.map(c=>`<option>${c.name}</option>`).join("");
+}
+
+// العملاء
+const saveCustomer = () => {
+    customers.push({
+        name: cust_name.value,
+        trays: parseInt(cust_trays.value)||0
+    });
+    localStorage.setItem("customers", JSON.stringify(customers));
+    showCustomers();
+}
+const showCustomers = () => {
+    if(customers.length===0) return customerList.innerHTML = "<p>لا يوجد عملاء.</p>";
+    customerList.innerHTML = `<table><tr><th>الاسم</th><th>رصيد الصواني</th><th>حذف</th></tr>`+
+        customers.map((c,i)=>`<tr><td>${c.name}</td><td>${c.trays}</td><td><button class='delete-btn' onclick='deleteCustomer(${i})'>❌</button></td></tr>`).join("")+`</table>`;
+}
+const deleteCustomer = i => {
+    customers.splice(i,1);
+    localStorage.setItem("customers", JSON.stringify(customers));
+    showCustomers();
+}
+
+// التوزيع
+const saveOutgoing = () => {
+    let traysNum = parseInt(out_trays.value);
+    outgoing.push({trays: traysNum, date: new Date().toLocaleDateString('ar-EG')});
+    localStorage.setItem("outgoing", JSON.stringify(outgoing));
+    showOutgoing();
+}
+const showOutgoing = () => {
+    if(outgoing.length===0) return outgoingList.innerHTML = "<p>لا يوجد توزيع.</p>";
+    outgoingList.innerHTML = `<table><tr><th>عدد الصواني</th><th>التاريخ</th><th>حذف</th></tr>`+
+        outgoing.map((o,i)=>`<tr><td>${o.trays}</td><td>${o.date}</td><td><button class='delete-btn' onclick='deleteOutgoing(${i})'>❌</button></td></tr>`).join("")+`</table>`;
+}
+const deleteOutgoing = i => {
+    outgoing.splice(i,1);
+    localStorage.setItem("outgoing", JSON.stringify(outgoing));
+    showOutgoing();
+}
+
+// تقارير التوزيع
+const showOutgoingReports = () => {
+    if(outgoing.length===0) return outgoingReportsContent.innerHTML = "<p>لا يوجد تقارير توزيع.</p>";
+    let outgoingByDate = {};
+    outgoing.forEach(o => { outgoingByDate[o.date] = (outgoingByDate[o.date] || 0) + o.trays; });
+    let salesByDate = {};
+    invoices.forEach(inv => { salesByDate[inv.date] = (salesByDate[inv.date] || 0) + inv.trays; });
+    let rows = Object.keys(outgoingByDate).map(date => {
+        let totalOut = outgoingByDate[date];
+        let totalSold = salesByDate[date] || 0;
+        let remaining = totalOut - totalSold;
+        return `<tr><td>${date}</td><td>${totalOut}</td><td>${totalSold}</td><td>${remaining}</td></tr>`;
+    }).join("");
+    outgoingReportsContent.innerHTML = `<table><tr><th>التاريخ</th><th>التوزيع</th><th>المباعة</th><th>المتبقية</th></tr>${rows}</table>`;
+}
+
+// نقطة البيع
+let currentInvoice = {};
+const calcInvoice = () => {
+    let gross = parseFloat(pos_gross.value)||0;
+    let net = parseFloat(pos_net.value)||0;
+    let price = parseFloat(pos_price.value)||0;
+    let diff = gross - net;
+    let total = net * price;
+    pos_diff.innerText = `فرق الميزان: ${diff.toFixed(2)} كجم`;
+    pos_total.innerText = `إجمالي الفاتورة: ${total.toFixed(2)} جنيه`;
+    currentInvoice = {
+        customer: pos_customer.value,
+        trays: parseInt(pos_trays.value) || 0,
+        empty: parseInt(pos_empty.value)||0,
+        gross, net, diff, price, total,
+        date: new Date().toLocaleDateString('ar-EG')
+    };
+}
+
+const saveInvoice = () => {
+    if(!currentInvoice.customer) return alert("احسب الفاتورة أولا");
+
+    let custIndex = customers.findIndex(c => c.name === currentInvoice.customer);
+    if (custIndex !== -1) {
+        customers[custIndex].trays =
+            (customers[custIndex].trays || 0)
+            - (currentInvoice.trays || 0)
+            + (currentInvoice.empty || 0);
+    }
+
+    invoices.push(currentInvoice);
+    localStorage.setItem("customers", JSON.stringify(customers));
+    localStorage.setItem("invoices", JSON.stringify(invoices));
+    showInvoices();
+    showCustomerReports();
+}
+
+const showInvoices = () => {
+    if(invoices.length===0) return invoiceList.innerHTML = "<p>لا يوجد فواتير.</p>";
+    invoiceList.innerHTML = `<table><tr><th>العميل</th><th>الصواني</th><th>الفوارغ</th><th>القائم</th><th>الصافي</th><th>السعر</th><th>الفرق</th><th>الإجمالي</th><th>التاريخ</th><th>حذف</th></tr>`+
+        invoices.map((inv,i)=>`<tr><td>${inv.customer}</td><td>${inv.trays}</td><td>${inv.empty}</td><td>${inv.gross}</td><td>${inv.net}</td><td>${inv.price}</td><td>${inv.diff}</td><td>${inv.total}</td><td>${inv.date}</td><td><button class='delete-btn' onclick='deleteInvoice(${i})'>❌</button></td></tr>`).join("")+`</table>`;
+}
+
+const deleteInvoice = (i) => {
+    let inv = invoices[i];
+    let custIndex = customers.findIndex(c => c.name === inv.customer);
+    if (custIndex !== -1) {
+        customers[custIndex].trays =
+            (customers[custIndex].trays || 0)
+            + (inv.trays || 0)
+            - (inv.empty || 0);
+    }
+
+    invoices.splice(i, 1);
+    localStorage.setItem("customers", JSON.stringify(customers));
+    localStorage.setItem("invoices", JSON.stringify(invoices));
+    showInvoices();
+    showCustomerReports();
+}
+
+// تقارير العملاء
+const showCustomerReports = () => {
+    if(customers.length===0) {
+        customerReportsContent.innerHTML = "<p>لا يوجد عملاء.</p>";
+        return;
+    }
+    let reportRows = customers.map(c => {
+        return `<tr><td>${c.name}</td><td>${c.trays}</td></tr>`;
+    }).join("");
+    customerReportsContent.innerHTML = `<table><tr><th>العميل</th><th>رصيد الصواني الحالي</th></tr>${reportRows}</table>`;
+}
+
+// إجمالي الفوارغ لليوم
+const showEmptyTrays = () => {
+    let today = new Date().toLocaleDateString('ar-EG');
+    let totalEmptyToday = invoices
+        .filter(inv => inv.date === today)
+        .reduce((sum, inv) => sum + (inv.empty || 0), 0);
+    emptyTraysContent.innerHTML = `<h3>إجمالي صواني الفوارغ لليوم (${today}): ${totalEmptyToday}</h3>`;
+}
+
+// المبيعات
+const showSales = () => {
+    let totalSales = invoices.reduce((sum,inv)=>sum+inv.total,0);
+    let totalKilos = invoices.reduce((sum,inv)=>sum+(inv.net || 0),0);
+    salesContent.innerHTML = `
+        <h3>إجمالي المبيعات: ${totalSales.toFixed(2)} جنيه</h3>
+        <h3>إجمالي الكيلو جرامات المباعة: ${totalKilos.toFixed(2)} كجم</h3>
+    `;
+}
+</script>
+</body>
+</html>
